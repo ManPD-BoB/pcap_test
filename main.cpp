@@ -80,7 +80,9 @@ int main(int argc, char* argv[]) {
 		struct pcap_pkthdr* header;							// pcap header
 		const u_char* packet;								// real packet
 		int res = pcap_next_ex(handle, &header, &packet);	// receive packet
-
+		if (res == 0) continue;
+		if (res == -1 || res == -2) break;
+		
 		eth = (struct Ethernet*)packet;
 
 		printf("========================================================\n");
@@ -94,6 +96,9 @@ int main(int argc, char* argv[]) {
 			// IP Header
 			// packet 구조체에서 +14만큼 이동한 부분부터 IP헤더의 부분
 			iph = (IP_Header*)(packet + 14);
+			u_char iph_length = iph->h_length;
+			u_char iph_tlength = iph->t_length;
+			
 			printf("IP Header\n");
 			printf("\tSource IP : %d.%d.%d.%d\n", iph->src_addr[0], iph->src_addr[1], iph->src_addr[2], iph->src_addr[3]);
 			printf("\tDestination IP : %d.%d.%d.%d\n", iph->dst_addr[0], iph->dst_addr[1], iph->dst_addr[2], iph->dst_addr[3]);
@@ -103,17 +108,19 @@ int main(int argc, char* argv[]) {
 				// TCP Header
 				// packet 구조체에서 +14만큼 이동하고 +20만큼 이동한 부분부터 TCP 헤더부분
 				// IP헤더의 HeaderLength값을 4배수하면 총 IP헤더의 크기가 나옴
-				tcph = (TCP_Header*)(packet + 14 + (iph->h_length) * 4);
+				tcph = (TCP_Header*)(packet + 14 + (iph_length) * 4);
+				u_char tcph_length = tcph->h_length;
+				
 				printf("TCP Header\n");
 				printf("\tSource Port : %d\n", htons(tcph->src_port));
 				printf("\tDestination Port : %d\n", htons(tcph->dst_port));
 
 				// If, No packet data
-				if (ntohs(iph->h_length) - (iph->h_length * 4) - (tcph->h_length * 4) <16)
+				if (ntohs(iph_length) - (iph_length * 4) - (tcph_length * 4) <16)
 				{
-					for (int i = 14 + (iph->h_length * 4) + (tcph->h_length * 4); i<14 + ntohs(iph->t_length); i++)
+					for (int i = 14 + (iph_length * 4) + (tcph_length * 4); i<14 + ntohs(iph_tlength); i++)
 					{
-						if ((i - 14 - iph->h_length * 4 - tcph->h_length * 4) % 16 == 0)
+						if ((i - 14 - iph_length * 4 - tcph_length * 4) % 16 == 0)
 						{
 							printf("\n");
 						}
@@ -124,7 +131,7 @@ int main(int argc, char* argv[]) {
 				// Exist packet data
 				else
 				{
-					int loc = 14 + (iph->h_length * 4) + (tcph->h_length * 4);
+					int loc = 14 + (iph_length * 4) + (tcph_length * 4);
 
 					for (int i = 0; i<16; i++)
 						printf("%02x ", packet[loc + i]);
@@ -132,8 +139,6 @@ int main(int argc, char* argv[]) {
 				}
 			}
 		}
-		if (res == 0) continue;
-		if (res == -1 || res == -2) break;
 		printf("%u bytes captured\n\n", header->caplen);
 		printf("========================================================\n");
 	}
